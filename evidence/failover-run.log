@@ -1,0 +1,72 @@
+=== Failover demo dry-run for namespace mongo-102465259 ===
+--- A. rs.status() before the twist ---
+mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017 PRIMARY health=1
+mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017 SECONDARY health=1
+mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017 SECONDARY health=1
+Current primary: mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017
+Victim chosen for this dry run (current primary): mongo-0
+>>> checkpoint: 01-status-before
+--- B. seed count before ---
+seed count: 10
+>>> checkpoint: 02-seed-count-before
+--- C. insert marker document, w: majority ---
+Executing via mongo-0, writing marker with w: majority...
+Inserted marker _id: 6a65017a632d8b57eae15f5d
+>>> checkpoint: 03-marker-inserted
+--- D. kubectl get pvc BEFORE kill ---
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 13m   Filesystem
+data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 12m   Filesystem
+data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 12m   Filesystem
+>>> checkpoint: 04-pvc-before
+--- E. kill victim pod mongo-0 (seconds after the marker insert) ---
+pod "mongo-0" deleted from mongo-102465259 namespace
+>>> checkpoint: 05-pod-deleted
+--- F. watch pod recreation ---
+poll 1: mongo-0 phase=Running ready=false
+poll 2: mongo-0 phase=Running ready=false
+poll 3: mongo-0 phase=Running ready=true
+NAME      READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
+mongo-0   1/1     Running   0          9s    10.244.1.4   mongo-kind-worker    <none>           <none>
+mongo-1   1/1     Running   0          13m   10.244.2.3   mongo-kind-worker2   <none>           <none>
+mongo-2   1/1     Running   0          12m   10.244.2.5   mongo-kind-worker2   <none>           <none>
+>>> checkpoint: 06-victim-recreated
+--- G. wait for a NEW primary to be elected ---
+poll 1: primary=mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017
+New primary: mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017
+mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017 (not reachable/healthy) health=0
+mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017 PRIMARY health=1
+mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017 SECONDARY health=1
+>>> checkpoint: 07-new-primary-elected
+--- H. verify zero data loss on new primary ---
+seed count: 10
+{
+  _id: ObjectId('6a65017a632d8b57eae15f5d'),
+  sid: '102465259',
+  marker: 'mentor-demo-1785004409',
+  ts: ISODate('2026-07-25T18:33:30.290Z')
+}
+>>> checkpoint: 08-data-verified-on-new-primary
+--- I. verify replication to a secondary ---
+{
+  _id: ObjectId('6a65017a632d8b57eae15f5d'),
+  sid: '102465259',
+  marker: 'mentor-demo-1785004409',
+  ts: ISODate('2026-07-25T18:33:30.290Z')
+}
+>>> checkpoint: 09-secondary-read-verified
+--- J. PVC reused, not recreated ---
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 13m   Filesystem
+data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 13m   Filesystem
+data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 12m   Filesystem
+PVC UID before=d0336d3b-a40b-4fd6-b5da-73511599dae8 after=d0336d3b-a40b-4fd6-b5da-73511599dae8
+PVC REUSED (same UID) - confirmed, not recreated.
+>>> checkpoint: 10-pvc-after
+--- K. final rs.status() (cluster healthy again) ---
+mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017 SECONDARY health=1
+mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017 PRIMARY health=1
+mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017 SECONDARY health=1
+>>> checkpoint: 11-final-status
+=== Failover demo dry run complete. Marker used: mentor-demo-1785004409 ===
+>>> checkpoint: 12-done
