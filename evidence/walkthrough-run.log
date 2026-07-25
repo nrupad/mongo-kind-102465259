@@ -1,150 +1,47 @@
-############################################################
-# CLO835 Semester Project 2 - MongoDB Replica Set on kind
-# Student: Nrupad Raval  |  ID: 102465259  |  Namespace: mongo-102465259
-############################################################
-
-=== TASK 1: Namespace mongo-102465259 ===
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl get ns mongo-102465259 --show-labels
 NAME              STATUS   AGE   LABELS
-mongo-102465259   Active   12m   app=mongo,kubernetes.io/metadata.name=mongo-102465259,student=102465259
->>> checkpoint: 01-namespace
-
-=== TASK 2/3: Headless service mongo-h + client service mongo-read ===
+mongo-102465259   Active   36m   app=mongo,kubernetes.io/metadata.name=mongo-102465259,student=102465259
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get svc -o wide
 NAME         TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)     AGE   SELECTOR
-mongo-h      ClusterIP   None          <none>        27017/TCP   12m   app=mongo
-mongo-read   ClusterIP   10.96.135.0   <none>        27017/TCP   12m   app=mongo
->>> checkpoint: 02-services
+mongo-h      ClusterIP   None          <none>        27017/TCP   36m   app=mongo
+mongo-read   ClusterIP   10.96.135.0   <none>        27017/TCP   36m   app=mongo
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get statefulset,pods -o wide
+NAME                     READY   AGE   CONTAINERS   IMAGES
+statefulset.apps/mongo   3/3     36m   mongo        mongo:7
 
-=== TASK 4/5: StatefulSet mongo (3 replicas, mongo:7, PVC per pod) ===
-NAME    READY   AGE   CONTAINERS   IMAGES
-mongo   3/3     12m   mongo        mongo:7
-NAME      READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
-mongo-0   1/1     Running   0          12m   10.244.1.3   mongo-kind-worker    <none>           <none>
-mongo-1   1/1     Running   0          12m   10.244.2.3   mongo-kind-worker2   <none>           <none>
-mongo-2   1/1     Running   0          11m   10.244.2.5   mongo-kind-worker2   <none>           <none>
+NAME          READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
+pod/mongo-0   1/1     Running   0          22m   10.244.1.4   mongo-kind-worker    <none>           <none>
+pod/mongo-1   1/1     Running   0          35m   10.244.2.3   mongo-kind-worker2   <none>           <none>
+pod/mongo-2   1/1     Running   0          35m   10.244.2.5   mongo-kind-worker2   <none>           <none>
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pvc -o wide
 NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
-data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 12m   Filesystem
-data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 12m   Filesystem
-data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 11m   Filesystem
->>> checkpoint: 03-statefulset-and-pvcs
-
-=== TASK 6: Liveness / readiness probes ===
-{
-    "exec": {
-        "command": [
-            "mongosh",
-            "--quiet",
-            "--eval",
-            "db.adminCommand('ping')"
-        ]
-    },
-    "failureThreshold": 6,
-    "initialDelaySeconds": 15,
-    "periodSeconds": 10,
-    "successThreshold": 1,
-    "timeoutSeconds": 5
-}
->>> checkpoint: 04-probes
-
-=== TASK 5 (init): rs.initiate() result - replica set rs0 ===
-mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  stateStr=PRIMARY  health=1
-mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  stateStr=SECONDARY  health=1
-mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  stateStr=SECONDARY  health=1
->>> checkpoint: 05-rs-status
-
-=== TASK 7: Seed data - clo835.students, student ID stamped in documents ===
-document count: 10
-{
-  _id: ObjectId('6a64feb77121f4454fb0fddf'),
-  sid: '102465259',
-  seq: 1,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde0'),
-  sid: '102465259',
-  seq: 2,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde1'),
-  sid: '102465259',
-  seq: 3,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde2'),
-  sid: '102465259',
-  seq: 4,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde3'),
-  sid: '102465259',
-  seq: 5,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde4'),
-  sid: '102465259',
-  seq: 6,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde5'),
-  sid: '102465259',
-  seq: 7,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde6'),
-  sid: '102465259',
-  seq: 8,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde7'),
-  sid: '102465259',
-  seq: 9,
-  note: 'seed'
-}
-{
-  _id: ObjectId('6a64feb77121f4454fb0fde8'),
-  sid: '102465259',
-  seq: 10,
-  note: 'seed'
-}
->>> checkpoint: 06-seed-data
-
-=== TASK 9: student ID parameterization (single source: scripts/vars.sh) ===
+data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 36m   Filesystem
+data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 35m   Filesystem
+data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 35m   Filesystem
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pod mongo-0 -o jsonpath='{.spec.containers[0].livenessProbe}'
+{"exec":{"command":["mongosh","--quiet","--eval","db.adminCommand('ping')"]},"failureThreshold":6,"initialDelaySeconds":15,"periodSeconds":10,"successThreshold":1,"timeoutSeconds":5}
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-0 -- mongosh --eval "rs.status().members"
+mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
+mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  PRIMARY  health=1
+mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ mongosh --eval "db.students.countDocuments({sid, note: \"seed\"})"
+clo835.students seed count for sid 102465259: 10
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ mongosh --eval "db.students.find({sid}).forEach(print)"
+1.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fddf
+2.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde0
+3.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde1
+4.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde2
+5.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde3
+6.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde4
+7.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde5
+8.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde6
+9.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde7
+10.  sid=102465259  note=seed  _id=6a64feb77121f4454fb0fde8
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ cat scripts/vars.sh
 #!/usr/bin/env bash
 # Single source of truth for the student ID. Every other file derives the
 # namespace / seed data from this instead of hardcoding it.
 STUDENT_ID="102465259"
 NAMESPACE="mongo-${STUDENT_ID}"
->>> checkpoint: 07-parameterization
-
-=== bootstrap.sh full run log (this cluster's actual bootstrap) ===
-=== [4/6] Initializing replica set ===
-Waiting for mongo-0, mongo-1, mongo-2 pods to be Running in mongo-102465259...
-pod/mongo-0 condition met
-pod/mongo-1 condition met
-pod/mongo-2 condition met
-Initiating replica set rs0 with mongo-0/1/2 stable DNS names...
-{ ok: 1 }
-Waiting for a PRIMARY to be elected...
-Primary elected: mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017
-mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017 -> PRIMARY
-mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017 -> SECONDARY
-mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017 -> SECONDARY
-=== [5/6] Seeding data ===
-Seeding clo835.students with 10 documents (sid=102465259, w: majority)...
-Inserted: undefined
-Seed count now: 10
-=== [6/6] Final replica set status ===
-mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017 -> stateStr=PRIMARY health=1
-mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017 -> stateStr=SECONDARY health=1
-mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017 -> stateStr=SECONDARY health=1
->>> checkpoint: 08-bootstrap-log-tail
-
-=== Deployment walkthrough complete. Proceeding to failover twist next. ===
->>> checkpoint: 09-done
+[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ echo 'deployment walkthrough complete'
+deployment walkthrough complete

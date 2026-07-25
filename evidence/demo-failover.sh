@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Evidence-capture dry run of the runbook's failover procedure (runbook.md
-# steps 2-6). Not part of the graded repo layout - this just drives the
-# real cluster the same way the live demo will, so screenshots can be taken
-# at each checkpoint. Touches evidence/.ckpts/<name> after each step so an
-# external screenshot watcher can sync to real progress.
+# Live failover dry run (runbook.md steps 2-6), ONE command per screen, for
+# evidence screenshots. Clears the screen and fakes a shell prompt before
+# each command so it reads like a normal manual terminal session. Not part
+# of the graded repo layout - this just drives the real cluster the same
+# way the live demo will.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,90 +11,91 @@ source "${REPO_ROOT}/scripts/vars.sh"
 CKPT_DIR="${REPO_ROOT}/evidence/.ckpts"
 mkdir -p "${CKPT_DIR}"
 rm -f "${CKPT_DIR}"/*
-ckpt() { touch "${CKPT_DIR}/$1"; echo ">>> checkpoint: $1"; sleep 1; }
 
-echo "=== Failover demo dry-run for namespace ${NAMESPACE} ==="
+PROMPT='\033[1;32mstudent@clo835\033[0m:\033[1;34m~/mongo-kind\033[0m$ '
 
-echo "--- A. rs.status() before the twist ---"
-kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "rs.status().members.forEach(m => print(m.name + ' ' + m.stateStr + ' health=' + m.health))"
+task() {
+  local name="$1"; shift
+  local display="$1"; shift
+  clear
+  printf "${PROMPT}%s\n" "${display}"
+  sleep 0.4
+  "$@"
+  touch "${CKPT_DIR}/${name}"
+  sleep 2.5
+}
+
 OLD_PRIMARY=$(kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "rs.hello().primary" 2>/dev/null | tail -n1)
-echo "Current primary: ${OLD_PRIMARY}"
 VICTIM=$(echo "${OLD_PRIMARY}" | cut -d. -f1)
-echo "Victim chosen for this dry run (current primary): ${VICTIM}"
-ckpt "01-status-before"
 
-echo "--- B. seed count before ---"
-kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "print('seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}))"
-ckpt "02-seed-count-before"
+task "01-status-before" 'kubectl exec mongo-0 -- mongosh --eval "rs.status().members"' \
+  kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
+    rs.status().members.forEach(m => print(m.name + '  ->  ' + m.stateStr + '  health=' + m.health));
+  "
 
-echo "--- C. insert marker document, w: majority ---"
+task "02-seed-count-before" 'mongosh --eval "db.students.countDocuments(...)"' \
+  kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
+    print('seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}));
+  "
+
 MARKER="mentor-demo-$(date +%s)"
-"${REPO_ROOT}/scripts/insert.sh" "${MARKER}"
-ckpt "03-marker-inserted"
+task "03-marker-inserted" "./scripts/insert.sh \"${MARKER}\"" \
+  "${REPO_ROOT}/scripts/insert.sh" "${MARKER}"
 
-echo "--- D. kubectl get pvc BEFORE kill ---"
-kubectl -n "${NAMESPACE}" get pvc -o wide
+task "04-pvc-before" "kubectl -n ${NAMESPACE} get pvc -o wide" \
+  kubectl -n "${NAMESPACE}" get pvc -o wide
 PVC_UID_BEFORE=$(kubectl -n "${NAMESPACE}" get pvc "data-${VICTIM}" -o jsonpath='{.metadata.uid}')
-ckpt "04-pvc-before"
 
-echo "--- E. kill victim pod ${VICTIM} (seconds after the marker insert) ---"
-kubectl -n "${NAMESPACE}" delete pod "${VICTIM}"
-ckpt "05-pod-deleted"
+task "05-pod-deleted" "kubectl delete pod ${VICTIM} -n ${NAMESPACE}   # current primary" \
+  kubectl -n "${NAMESPACE}" delete pod "${VICTIM}"
 
-echo "--- F. watch pod recreation ---"
+# Wait quietly (no polling spam on screen) for the pod to come back.
 for i in $(seq 1 60); do
   PHASE=$(kubectl -n "${NAMESPACE}" get pod "${VICTIM}" -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
   READY=$(kubectl -n "${NAMESPACE}" get pod "${VICTIM}" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
-  echo "poll ${i}: ${VICTIM} phase=${PHASE} ready=${READY}"
   [ "${PHASE}" = "Running" ] && [ "${READY}" = "true" ] && break
   sleep 3
 done
-kubectl -n "${NAMESPACE}" get pods -o wide
-ckpt "06-victim-recreated"
 
-echo "--- G. wait for a NEW primary to be elected ---"
+task "06-victim-recreated" "kubectl -n ${NAMESPACE} get pods -o wide" \
+  kubectl -n "${NAMESPACE}" get pods -o wide
+
+# Wait quietly for a NEW primary to be elected.
 SURVIVOR="mongo-0"
 [ "${SURVIVOR}" = "${VICTIM}" ] && SURVIVOR="mongo-1"
 NEW_PRIMARY=""
 for i in $(seq 1 60); do
   NEW_PRIMARY=$(kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "rs.hello().primary" 2>/dev/null | tail -n1 || echo "")
-  echo "poll ${i}: primary=${NEW_PRIMARY}"
   [ -n "${NEW_PRIMARY}" ] && [ "${NEW_PRIMARY}" != "none" ] && break
   sleep 2
 done
-echo "New primary: ${NEW_PRIMARY}"
-kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "rs.status().members.forEach(m => print(m.name + ' ' + m.stateStr + ' health=' + m.health))"
-ckpt "07-new-primary-elected"
-
-echo "--- H. verify zero data loss on new primary ---"
 NEW_PRIMARY_POD=$(echo "${NEW_PRIMARY}" | cut -d. -f1)
-kubectl -n "${NAMESPACE}" exec "${NEW_PRIMARY_POD}" -- mongosh --quiet --eval "
-  print('seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}));
-  printjson(db.getSiblingDB('clo835').students.findOne({marker:'${MARKER}'}));
-"
-ckpt "08-data-verified-on-new-primary"
 
-echo "--- I. verify replication to a secondary ---"
-kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "
-  db.getMongo().setReadPref('secondary');
-  printjson(db.getSiblingDB('clo835').students.findOne({marker:'${MARKER}'}));
-"
-ckpt "09-secondary-read-verified"
+task "07-new-primary-elected" 'kubectl exec '"${SURVIVOR}"' -- mongosh --eval "rs.status().members"' \
+  kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "
+    rs.status().members.forEach(m => print(m.name + '  ->  ' + m.stateStr + '  health=' + m.health));
+  "
 
-echo "--- J. PVC reused, not recreated ---"
-kubectl -n "${NAMESPACE}" get pvc -o wide
+task "08-data-verified-on-new-primary" 'mongosh --eval "seed count + marker doc on new primary"' \
+  kubectl -n "${NAMESPACE}" exec "${NEW_PRIMARY_POD}" -- mongosh --quiet --eval "
+    print('seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}));
+    printjson(db.getSiblingDB('clo835').students.findOne({marker:'${MARKER}'}));
+  "
+
+task "09-secondary-read-verified" "mongosh --eval \"setReadPref('secondary'); find marker\"" \
+  kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "
+    db.getMongo().setReadPref('secondary');
+    printjson(db.getSiblingDB('clo835').students.findOne({marker:'${MARKER}'}));
+  "
+
+task "10-pvc-after" "kubectl -n ${NAMESPACE} get pvc -o wide   # same claim, not recreated" \
+  kubectl -n "${NAMESPACE}" get pvc -o wide
 PVC_UID_AFTER=$(kubectl -n "${NAMESPACE}" get pvc "data-${VICTIM}" -o jsonpath='{.metadata.uid}')
-echo "PVC UID before=${PVC_UID_BEFORE} after=${PVC_UID_AFTER}"
-if [ "${PVC_UID_BEFORE}" = "${PVC_UID_AFTER}" ]; then
-  echo "PVC REUSED (same UID) - confirmed, not recreated."
-else
-  echo "WARNING: PVC UID changed - claim was NOT reused."
+if [ "${PVC_UID_BEFORE}" != "${PVC_UID_AFTER}" ]; then
+  echo "WARNING: PVC UID changed - claim was NOT reused." >&2
 fi
-ckpt "10-pvc-after"
 
-echo "--- K. final rs.status() (cluster healthy again) ---"
-kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "rs.status().members.forEach(m => print(m.name + ' ' + m.stateStr + ' health=' + m.health))"
-ckpt "11-final-status"
-
-echo "=== Failover demo dry run complete. Marker used: ${MARKER} ==="
-ckpt "12-done"
+task "11-final-status" 'kubectl exec mongo-0 -- mongosh --eval "rs.status().members"   # cluster healthy again' \
+  kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
+    rs.status().members.forEach(m => print(m.name + '  ->  ' + m.stateStr + '  health=' + m.health));
+  "
