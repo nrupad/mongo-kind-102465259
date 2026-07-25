@@ -12,7 +12,7 @@ CKPT_DIR="${REPO_ROOT}/evidence/.ckpts"
 mkdir -p "${CKPT_DIR}"
 rm -f "${CKPT_DIR}"/*
 
-PROMPT='\033[1;32mstudent@clo835\033[0m:\033[1;34m~/mongo-kind\033[0m$ '
+PROMPT="\033[1;32mstudent@clo835\033[0m \033[1;35m(ns:${NAMESPACE} sid:${STUDENT_ID})\033[0m:\033[1;34m~/mongo-kind\033[0m\$ "
 
 task() {
   local name="$1"; shift
@@ -28,14 +28,14 @@ task() {
 OLD_PRIMARY=$(kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "rs.hello().primary" 2>/dev/null | tail -n1)
 VICTIM=$(echo "${OLD_PRIMARY}" | cut -d. -f1)
 
-task "01-status-before" 'kubectl exec mongo-0 -- mongosh --eval "rs.status().members"' \
+task "01-status-before" "kubectl -n ${NAMESPACE} exec mongo-0 -- mongosh --eval \"rs.status().members\"" \
   kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
     rs.status().members.forEach(m => print(m.name + '  ->  ' + m.stateStr + '  health=' + m.health));
   "
 
-task "02-seed-count-before" 'mongosh --eval "db.students.countDocuments(...)"' \
+task "02-seed-count-before" "kubectl -n ${NAMESPACE} exec mongo-0 -- mongosh --eval \"db.students.countDocuments({sid})\"" \
   kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
-    print('seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}));
+    print('namespace=${NAMESPACE}  sid=${STUDENT_ID}  seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}));
   "
 
 MARKER="mentor-demo-$(date +%s)"
@@ -71,18 +71,18 @@ for i in $(seq 1 60); do
 done
 NEW_PRIMARY_POD=$(echo "${NEW_PRIMARY}" | cut -d. -f1)
 
-task "07-new-primary-elected" 'kubectl exec '"${SURVIVOR}"' -- mongosh --eval "rs.status().members"' \
+task "07-new-primary-elected" "kubectl -n ${NAMESPACE} exec ${SURVIVOR} -- mongosh --eval \"rs.status().members\"" \
   kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "
     rs.status().members.forEach(m => print(m.name + '  ->  ' + m.stateStr + '  health=' + m.health));
   "
 
-task "08-data-verified-on-new-primary" 'mongosh --eval "seed count + marker doc on new primary"' \
+task "08-data-verified-on-new-primary" "kubectl -n ${NAMESPACE} exec ${NEW_PRIMARY_POD} -- mongosh --eval \"seed count + marker doc on new primary\"" \
   kubectl -n "${NAMESPACE}" exec "${NEW_PRIMARY_POD}" -- mongosh --quiet --eval "
     print('seed count: ' + db.getSiblingDB('clo835').students.countDocuments({sid:'${STUDENT_ID}', note:'seed'}));
     printjson(db.getSiblingDB('clo835').students.findOne({marker:'${MARKER}'}));
   "
 
-task "09-secondary-read-verified" "mongosh --eval \"setReadPref('secondary'); find marker\"" \
+task "09-secondary-read-verified" "kubectl -n ${NAMESPACE} exec ${SURVIVOR} -- mongosh --eval \"setReadPref('secondary'); find marker\"" \
   kubectl -n "${NAMESPACE}" exec "${SURVIVOR}" -- mongosh --quiet --eval "
     db.getMongo().setReadPref('secondary');
     printjson(db.getSiblingDB('clo835').students.findOne({marker:'${MARKER}'}));
@@ -95,7 +95,7 @@ if [ "${PVC_UID_BEFORE}" != "${PVC_UID_AFTER}" ]; then
   echo "WARNING: PVC UID changed - claim was NOT reused." >&2
 fi
 
-task "11-final-status" 'kubectl exec mongo-0 -- mongosh --eval "rs.status().members"   # cluster healthy again' \
+task "11-final-status" "kubectl -n ${NAMESPACE} exec mongo-0 -- mongosh --eval \"rs.status().members\"   # cluster healthy again" \
   kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
     rs.status().members.forEach(m => print(m.name + '  ->  ' + m.stateStr + '  health=' + m.health));
   "

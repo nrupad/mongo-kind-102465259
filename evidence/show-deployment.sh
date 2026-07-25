@@ -12,7 +12,7 @@ CKPT_DIR="${REPO_ROOT}/evidence/.ckpts"
 mkdir -p "${CKPT_DIR}"
 rm -f "${CKPT_DIR}"/*
 
-PROMPT='\033[1;32mstudent@clo835\033[0m:\033[1;34m~/mongo-kind\033[0m$ '
+PROMPT="\033[1;32mstudent@clo835\033[0m \033[1;35m(ns:${NAMESPACE} sid:${STUDENT_ID})\033[0m:\033[1;34m~/mongo-kind\033[0m\$ "
 
 task() {
   # task <checkpoint-name> <displayed-command> -- <real command...>
@@ -51,7 +51,7 @@ task "07-seed-count" 'mongosh --eval "db.students.countDocuments({sid, note: \"s
     print('clo835.students seed count for sid ${STUDENT_ID}: ' + db.getSiblingDB('clo835').students.countDocuments({sid: '${STUDENT_ID}', note: 'seed'}));
   "
 
-task "08-seed-data" 'mongosh --eval "db.students.find({sid}).forEach(print)"' \
+task "08-seed-data" "kubectl -n ${NAMESPACE} exec mongo-0 -- mongosh --eval \"db.students.find({sid}).forEach(print)\"" \
   kubectl -n "${NAMESPACE}" exec mongo-0 -- mongosh --quiet --eval "
     db.getSiblingDB('clo835').students.find({sid: '${STUDENT_ID}', note: 'seed'}).sort({seq:1}).forEach(
       d => print(d.seq + '.  sid=' + d.sid + '  note=' + d.note + '  _id=' + d._id)
@@ -61,5 +61,5 @@ task "08-seed-data" 'mongosh --eval "db.students.find({sid}).forEach(print)"' \
 task "09-parameterization" "cat scripts/vars.sh" \
   cat "${REPO_ROOT}/scripts/vars.sh"
 
-task "10-done" "echo 'deployment walkthrough complete'" \
-  echo "deployment walkthrough complete"
+task "10-done" "kubectl get ns ${NAMESPACE} -o jsonpath='{.metadata.name}{\"  ->  \"}{.metadata.labels.student}{\"\n\"}'" \
+  kubectl get ns "${NAMESPACE}" -o jsonpath='{.metadata.name}{"  ->  "}{.metadata.labels.student}{"\n"}'

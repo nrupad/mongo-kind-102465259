@@ -30,7 +30,7 @@ fi
 
 URI="mongodb://mongo-0.mongo-h.${NAMESPACE}.svc.cluster.local:27017,mongo-1.mongo-h.${NAMESPACE}.svc.cluster.local:27017,mongo-2.mongo-h.${NAMESPACE}.svc.cluster.local:27017/clo835?replicaSet=rs0"
 
-echo "Executing via ${TARGET}, writing marker with w: majority..."
+echo "namespace=${NAMESPACE}  sid=${STUDENT_ID}  -- executing via ${TARGET}, writing marker with w: majority..."
 kubectl -n "${NAMESPACE}" exec "${TARGET}" -- mongosh --quiet "${URI}" --eval "
   const res = db.students.insertOne(
     { sid: '${STUDENT_ID}', marker: '${MESSAGE}', ts: new Date() },

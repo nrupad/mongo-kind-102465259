@@ -1,49 +1,49 @@
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl exec mongo-0 -- mongosh --eval "rs.status().members"
-mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
-mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  PRIMARY  health=1
-mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ mongosh --eval "db.students.countDocuments(...)"
-seed count: 10
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ ./scripts/insert.sh "mentor-demo-1785005822"
-Executing via mongo-0, writing marker with w: majority...
-Inserted marker _id: 6a6506ff24b67da629efe42d
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pvc -o wide
-NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
-data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 36m   Filesystem
-data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 36m   Filesystem
-data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 35m   Filesystem
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl delete pod mongo-1 -n mongo-102465259   # current primary
-pod "mongo-1" deleted from mongo-102465259 namespace
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pods -o wide
-NAME      READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
-mongo-0   1/1     Running   0          23m   10.244.1.4   mongo-kind-worker    <none>           <none>
-mongo-1   1/1     Running   0          7s    10.244.2.6   mongo-kind-worker2   <none>           <none>
-mongo-2   1/1     Running   0          36m   10.244.2.5   mongo-kind-worker2   <none>           <none>
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl exec mongo-0 -- mongosh --eval "rs.status().members"
-mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  PRIMARY  health=1
-mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  (not reachable/healthy)  health=0
-mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ mongosh --eval "seed count + marker doc on new primary"
-seed count: 10
-{
-  _id: ObjectId('6a6506ff24b67da629efe42d'),
-  sid: '102465259',
-  marker: 'mentor-demo-1785005822',
-  ts: ISODate('2026-07-25T18:57:03.582Z')
-}
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ mongosh --eval "setReadPref('secondary'); find marker"
-{
-  _id: ObjectId('6a6506ff24b67da629efe42d'),
-  sid: '102465259',
-  marker: 'mentor-demo-1785005822',
-  ts: ISODate('2026-07-25T18:57:03.582Z')
-}
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pvc -o wide   # same claim, not recreated
-NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
-data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 37m   Filesystem
-data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 36m   Filesystem
-data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 36m   Filesystem
-[H[2J[3J[1;32mstudent@clo835[0m:[1;34m~/mongo-kind[0m$ kubectl exec mongo-0 -- mongosh --eval "rs.status().members"   # cluster healthy again
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-0 -- mongosh --eval "rs.status().members"
 mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  PRIMARY  health=1
 mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
+mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-0 -- mongosh --eval "db.students.countDocuments({sid})"
+namespace=mongo-102465259  sid=102465259  seed count: 10
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ ./scripts/insert.sh "mentor-demo-1785006679"
+namespace=mongo-102465259  sid=102465259  -- executing via mongo-0, writing marker with w: majority...
+Inserted marker _id: 6a650a5960604d42317f50b6
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pvc -o wide
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 51m   Filesystem
+data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 50m   Filesystem
+data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 50m   Filesystem
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl delete pod mongo-0 -n mongo-102465259   # current primary
+pod "mongo-0" deleted from mongo-102465259 namespace
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pods -o wide
+NAME      READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
+mongo-0   1/1     Running   0          7s    10.244.1.5   mongo-kind-worker    <none>           <none>
+mongo-1   1/1     Running   0          14m   10.244.2.6   mongo-kind-worker2   <none>           <none>
+mongo-2   1/1     Running   0          50m   10.244.2.5   mongo-kind-worker2   <none>           <none>
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-1 -- mongosh --eval "rs.status().members"
+mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  (not reachable/healthy)  health=0
+mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  PRIMARY  health=1
+mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-1 -- mongosh --eval "seed count + marker doc on new primary"
+seed count: 10
+{
+  _id: ObjectId('6a650a5960604d42317f50b6'),
+  sid: '102465259',
+  marker: 'mentor-demo-1785006679',
+  ts: ISODate('2026-07-25T19:11:21.266Z')
+}
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-1 -- mongosh --eval "setReadPref('secondary'); find marker"
+{
+  _id: ObjectId('6a650a5960604d42317f50b6'),
+  sid: '102465259',
+  marker: 'mentor-demo-1785006679',
+  ts: ISODate('2026-07-25T19:11:21.266Z')
+}
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 get pvc -o wide   # same claim, not recreated
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+data-mongo-0   Bound    pvc-d0336d3b-a40b-4fd6-b5da-73511599dae8   1Gi        RWO            standard       <unset>                 51m   Filesystem
+data-mongo-1   Bound    pvc-5acf2f18-a5e4-400b-a9ea-54918bab28d7   1Gi        RWO            standard       <unset>                 51m   Filesystem
+data-mongo-2   Bound    pvc-a4c0ae77-e84e-40cd-942c-940cdd44bfc8   1Gi        RWO            standard       <unset>                 50m   Filesystem
+[H[2J[3J[1;32mstudent@clo835[0m [1;35m(ns:mongo-102465259 sid:102465259)[0m:[1;34m~/mongo-kind[0m$ kubectl -n mongo-102465259 exec mongo-0 -- mongosh --eval "rs.status().members"   # cluster healthy again
+mongo-0.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
+mongo-1.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  PRIMARY  health=1
 mongo-2.mongo-h.mongo-102465259.svc.cluster.local:27017  ->  SECONDARY  health=1
