@@ -12,7 +12,7 @@ CKPT_DIR="${REPO_ROOT}/evidence/.ckpts"
 mkdir -p "${CKPT_DIR}"
 rm -f "${CKPT_DIR}"/*
 
-PROMPT="\033[1;32mstudent@clo835\033[0m \033[1;35m(ns:${NAMESPACE} sid:${STUDENT_ID})\033[0m:\033[1;34m~/mongo-kind\033[0m\$ "
+PROMPT="\033[1;32mnrupad@clo835\033[0m \033[1;35m(ns:${NAMESPACE})\033[0m:\033[1;34m~/mongo-kind\033[0m\$ "
 
 task() {
   local name="$1"; shift
