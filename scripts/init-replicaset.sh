@@ -1,7 +1,3 @@
-#!/usr/bin/env bash
-# Sets up the replica set (rs0) using the three pod DNS names.
-# If it's already set up, this just skips that step instead of failing,
-# so I can re-run bootstrap.sh without breaking anything.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
