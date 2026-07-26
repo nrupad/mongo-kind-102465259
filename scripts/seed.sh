@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Seeds clo835.students with 10 documents carrying the student ID, using
-# majority write concern. Idempotent: skips insertion if already seeded.
+# Adds 10 test documents to clo835.students, each with my student ID.
+# Checks first so running bootstrap.sh twice doesn't add them twice.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

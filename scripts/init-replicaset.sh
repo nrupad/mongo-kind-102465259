@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Initializes rs0 with the three stable per-pod DNS names. Idempotent: safe
-# to re-run against an already-initiated replica set.
+# Sets up the replica set (rs0) using the three pod DNS names.
+# If it's already set up, this just skips that step instead of failing,
+# so I can re-run bootstrap.sh without breaking anything.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,8 +33,6 @@ fi
 
 echo "Waiting for a PRIMARY to be elected..."
 for i in $(seq 1 60); do
-  STATE=$(kubectl -n "${NAMESPACE}" exec mongo-0 -- \
-    mongosh --quiet --eval "rs.hello().isWritablePrimary || rs.hello().secondary || false" 2>/dev/null | tail -n1 || true)
   PRIMARY=$(kubectl -n "${NAMESPACE}" exec mongo-0 -- \
     mongosh --quiet --eval "(rs.hello().primary || 'none')" 2>/dev/null | tail -n1 || true)
   if [ "${PRIMARY}" != "none" ] && [ -n "${PRIMARY}" ]; then

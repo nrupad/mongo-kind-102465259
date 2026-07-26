@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Brings a clean host (Docker + kind + kubectl only) up to a fully
-# initialized, seeded, 3-member MongoDB replica set with an elected primary.
-# Safe to re-run (idempotent): skips cluster creation / rs.initiate() / seed
-# insertion if they're already done.
+# One script that sets up everything: the kind cluster, the namespace and
+# services, the StatefulSet, the replica set, and the seed data.
+# Each step checks if it already ran, so running this twice is safe.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

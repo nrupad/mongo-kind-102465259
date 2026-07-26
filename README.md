@@ -1,60 +1,63 @@
 # CLO835 Semester Project 2 — MongoDB Replica Set on kind
 
-3-member MongoDB replica set (`rs0`) running on a local `kind` cluster,
-built from raw Kubernetes manifests (no Helm, no kustomize), driven by a
-single idempotent `bootstrap.sh`.
+This project sets up a 3-member MongoDB replica set on a local `kind`
+Kubernetes cluster, using plain Kubernetes YAML (no Helm, no kustomize).
+Everything is brought up with one script, `bootstrap.sh`.
 
 - Student: Nrupad Raval — ID `102465259`
 - Namespace: `mongo-102465259`
-- Image: `mongo:7` (official, Docker Hub)
+- Image: `mongo:7` (official image from Docker Hub)
 
 ## Repo layout
 
 ```
-kind-config.yaml        1 control-plane + 2 worker kind cluster
-bootstrap.sh             clean-host -> healthy seeded replica set, idempotent
+kind-config.yaml      kind cluster definition (1 control-plane + 2 workers)
+bootstrap.sh           runs everything below in order
 manifests/
-  00-namespace.yaml       namespace mongo-102465259 (templated via ${NAMESPACE})
-  10-headless-service.yaml  mongo-h, clusterIP: None, peer discovery DNS
-  11-read-service.yaml      mongo-read, ClusterIP, client access
-  20-statefulset.yaml       mongo StatefulSet, 3 replicas, PVC per pod, probes
+  00-namespace.yaml
+  10-headless-service.yaml   mongo-h, used for pod-to-pod DNS
+  11-read-service.yaml       mongo-read, normal ClusterIP for clients
+  20-statefulset.yaml        the mongo StatefulSet (3 pods, PVC each)
 scripts/
-  vars.sh                 single source of truth for STUDENT_ID / NAMESPACE
-  init-replicaset.sh       idempotent rs.initiate() with stable DNS names
-  seed.sh                  idempotent seed of clo835.students (10 docs, w:majority)
-  insert.sh                marker document insert used live during the demo
-runbook.md                copy-pasteable procedures for the live demo
-evidence/                  pre-demo terminal captures from a real run
+  vars.sh              student ID + namespace, set once here
+  init-replicaset.sh    runs rs.initiate()
+  seed.sh               inserts the 10 seed documents
+  insert.sh             inserts one marker document (used in the demo)
+runbook.md              commands used during the live demo
 ```
 
-## Quick start
+## How to run it
 
 ```bash
 ./bootstrap.sh
 ```
 
-Brings up the kind cluster, applies all manifests, initiates the replica
-set with the three stable pod DNS names
-(`mongo-N.mongo-h.mongo-102465259.svc.cluster.local:27017`), and seeds
-`clo835.students` with 10 documents tagged with the student ID. Finishes by
-printing each member's `stateStr`. See `runbook.md` for the failover demo
-procedures.
+This creates the kind cluster, applies the manifests, waits for the 3 pods
+to be ready, initiates the replica set, and seeds the database. It prints
+the status of all 3 members at the end. See `runbook.md` for the rest of
+the demo steps (finding the primary, killing a pod, checking the data
+survived, etc).
 
-## Design notes
+## Why a StatefulSet and not a Deployment
 
-- **StatefulSet vs Deployment:** MongoDB replica set members need stable
-  identities (`mongo-0/1/2`), stable per-pod DNS, and their own persistent
-  volume that survives pod recreation — a Deployment's fungible,
-  identically-named pods and shared/ephemeral storage model can't provide
-  any of that.
-- **Headless service (`mongo-h`, `clusterIP: None`):** gives each pod a
-  resolvable DNS record (`<pod>.mongo-h.<ns>.svc.cluster.local`) instead of
-  a single virtual IP, which is what `rs.initiate()` needs to record stable
-  member hostnames that survive pod restarts and IP changes.
-  `publishNotReadyAddresses: true` so peers can resolve each other during
-  initial replica set formation, before readiness passes.
-  `mongo-read` is a normal ClusterIP service for client-style access.
-- **Student ID parameterization:** `scripts/vars.sh` is the only place
-  `STUDENT_ID` is set. `bootstrap.sh` exports it and pipes every manifest
-  through `envsubst` before `kubectl apply`, so the namespace name is
-  substituted at apply time rather than hardcoded in each YAML file.
+MongoDB replica set members need to keep the same name and the same
+storage every time they restart, otherwise the other members can't find
+them again and the data would be gone. A Deployment doesn't guarantee
+either of those things — pods get random names and can share/lose
+storage. A StatefulSet gives each pod a fixed name (`mongo-0`, `mongo-1`,
+`mongo-2`) and its own PersistentVolumeClaim that follows it around.
+
+## Why the headless service
+
+`mongo-h` has `clusterIP: None`, which means it doesn't get a single
+virtual IP like a normal service. Instead, each pod gets its own DNS
+name: `mongo-0.mongo-h.mongo-102465259.svc.cluster.local`, and so on.
+That's exactly what `rs.initiate()` uses to register the three members,
+so they can still find each other even after a restart changes their pod
+IP.
+
+## Student ID
+
+The student ID only appears in one place, `scripts/vars.sh`. Every other
+script and manifest reads it from there instead of having it typed in
+multiple times.
