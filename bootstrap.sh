@@ -1,7 +1,3 @@
-#!/usr/bin/env bash
-# One script that sets up everything: the kind cluster, the namespace and
-# services, the StatefulSet, the replica set, and the seed data.
-# Each step checks if it already ran, so running this twice is safe.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
