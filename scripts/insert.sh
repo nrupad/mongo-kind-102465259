@@ -1,12 +1,3 @@
-#!/usr/bin/env bash
-# Inserts one "marker" document with majority write concern. Used during
-# the demo right before killing a pod, to prove no data gets lost.
-#
-# The pod the instructor picks to kill might be the one I'd normally exec
-# into, so this tries mongo-0, then mongo-1, then mongo-2 until it finds
-# one that's still up. Whichever pod it connects through, the connection
-# string lists all three hosts with replicaSet=rs0, so mongosh still finds
-# and writes to the actual primary.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
